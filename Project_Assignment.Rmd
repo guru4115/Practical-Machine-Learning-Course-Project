@@ -1,0 +1,145 @@
+---
+title: 'Practical Machince Learning Course Project: Predicting The Manner of Exercise'
+author: "Kumaraguru"
+date: "March 13, 2017"
+output: html_document
+---
+
+##Introduction 
+The purpose of this project is to build a machine learning algorithm to predict activity quality (classe) using data collected   using d accelerometers on the belt, forearm, arm, and dumbell of 6 participants
+
+## Download and Load Data into R
+
+```{r, message=FALSE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(ggplot2)
+wd<- getwd()
+```
+
+
+```{r chunk1, cache=TRUE}
+### Download Required Files of not exists
+
+fileURL1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+fileURL2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+
+destfile1="./pml-training.csv"
+destfile2="./pml-testing.csv"
+if (!file.exists(wd)) {
+        setInternet2(TRUE)
+        download.file(fileURL2 ,destfile2, method="auto") 
+        download.file(fileURL1 ,destfile1, method="auto")
+}
+### load data into R
+datatrain <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+datatest <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+```
+
+
+## Data Cleaning
+
+The columns with large numbers of NAs are removed since the columns will not do much help in predicting. Other column which do effect the precdition such as username, window and timestamps are also removed
+```{r chunk2, cache=TRUE}
+
+
+### remove Column with  na
+datatrain<- datatrain[!colMeans(is.na(datatrain))]
+datatest<- datatest[!colMeans(is.na(datatest))]
+
+## remove unused column
+datatrain<- datatrain[-(grep("^X$|user_name|timestamp|window", names(datatrain)))]
+datatest<- datatest[-(grep("^X$|user_name|timestamp|window|problem_id", names(datatest)))]
+
+## Create tarining and test set
+inTrain <- createDataPartition(y=datatrain$classe, p = 0.7, list = FALSE)
+training <- datatrain[inTrain,]
+testing<- datatrain[-inTrain,]
+
+```
+
+
+##Cross validation
+
+10 Fold Cross validation is used
+
+```{r chunk3, cache=TRUE}
+trc <- trainControl(method = "cv", number = 10, verboseIter=F)
+```
+
+##Model building
+
+Accuracy of Random Forest model, Stochastic gradient boosting trees(gbm) and Recursive Partitioning and Regression Trees (Rpart)will is compared to get the best model.  
+
+
+#### Random Forest Model
+```{r chunk9, cache=TRUE}
+set.seed(825)
+rf1 <- randomForest(classe~., data=training, mtry=3, ntree=500, do.trace=25)
+```
+
+Tracing is done to determine the best ntree value to be used. Value 450 is used as the OOB value bottoms at this value
+
+```{r chunk4, cache=TRUE}
+
+set.seed(825)
+modelRf<- train(classe ~ ., data=training, method="rf", trControl=trc, ntree = 450)
+
+```
+
+#### Stochastic Gradient Boosting Trees (gbm) Model
+
+```{r chunk5, cache=TRUE , message=FALSE}
+
+set.seed(825)
+modelGbm<- train(classe~., data=training, method="gbm", verbose=FALSE)
+
+```
+
+#### Rpart Model 
+```{r chunk6, cache=TRUE}
+set.seed(825)
+modRpart<-train(classe~.,method="rpart", data=training, trControl= trc)
+```
+
+
+
+##Test Models(out of sample error) 
+
+```{r chunk7, cache=TRUE}
+
+pred1 <- predict(modelRf, newdata = testing)
+conMatrix1 <- confusionMatrix(pred1, reference = testing$classe)
+
+pred2 <- predict(modelGbm, newdata = testing)
+conMatrix2 <- confusionMatrix(pred2, reference = testing$classe)
+
+pred3 <- predict(modRpart, newdata = testing)
+conMatrix3 <- confusionMatrix(pred3, reference = testing$classe)
+rfModelAcc<- conMatrix1$overall["Accuracy"]
+gbmModelAcc<- conMatrix2$overall["Accuracy"]
+RpartModelAcc<-conMatrix3$overall["Accuracy"]
+
+```
+
+The Accuracy of the models are:  
+
+1. Random Forest Model - `r rfModelAcc`
+2. Stochastic Gradient Boosting Trees (gbm) Model - `r gbmModelAcc`  
+3. Rpart Model - `r RpartModelAcc`
+
+
+##Conclusion
+Based on the Accuracy the Random Forest Model is used to predict with the test data For answering the quiz 
+
+#### Getting Results with test data set
+```{r chunk8, cache=TRUE}
+predict(modelRf, newdata = datatest)
+```
+
+
+####Note
+*** Please Download the Cache folder into working directory to make processing faster if you are running the code in your machine 
+
